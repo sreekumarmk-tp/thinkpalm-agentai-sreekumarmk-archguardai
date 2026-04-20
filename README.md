@@ -1,48 +1,164 @@
-# 🏗️ ArchGuard AI: Agentic Architecture Assistant
+# ArchGuard AI: Agentic Architecture Assistant
 
-**A sophisticated multi-agent system designed to perform deep repository analysis, security auditing, and architectural health assessments using state-of-the-art LLMs.**
-
----
-
-## 🌟 Overview
-
-ArchGuard AI is a powerful, production-ready tool that transforms how engineering teams review codebases. By orchestrating a "Council of Specialists," it goes beyond simple linting to provide deep, evidence-based insights into tech stack maturity, security posture, design integrity, and performance efficiency.
-
-Built with **LangGraph**, it utilizes a robust **ReAct (Reasoning and Acting)** pattern to allow agents to interact directly with your GitHub repository, fetch specific files, and build a comprehensive understanding of the architecture before synthesizing a final, prioritized engineering roadmap.
+**A multi-agent system for deep repository analysis, security auditing, and architectural health assessments using LLMs.**
 
 ---
 
-## 🚀 Key Features
+## Project name and problem statement
 
-- **Council of Specialists**: 3 converged domain-specific agents focused on Architecture/Design, Security/Quality, and Performance/Testing.
-- **Evidence-Based Findings**: Every finding is backed by direct evidence fetched from the repository using automated tools.
-- **LLM Adapter Layer**: Unified interface for seamlessly switching between **OpenRouter** and **Groq**.
-- **Dynamic Intelligence**: Dynamically discovers available models (Gemma, Qwen, Llama, Mixtral) from both providers.
-- **Parallel Execution Swarm**: Configurable parallel or sequential execution of agents for maximum efficiency.
-- **Visual Excellence**: Automatic cleanup and rendering of Mermaid.js diagrams using **Mermaid.ink** for consistent visuals.
-- **Runtime Resilience**: Intelligent retries, exponential backoff, and model fallback chains.
-- **CLI & UI Support**: Professional Streamlit web interface and a robust CLI for CI/CD.
+**Project name:** **ArchGuard AI** (Agentic Architecture Assistant).
+
+**Problem statement:** Teams spend too much time understanding unfamiliar repositories and judging architectural risk. Single-shot LLM prompts cannot reliably cover a whole codebase, and shallow linting misses cross-cutting concerns (security posture, performance, structural maintainability). Context limits and weak grounding to real files make one-off reviews inconsistent. ArchGuard AI addresses this by orchestrating specialist agents that **list and read real files** from GitHub, score domains, and synthesize an evidence-based engineering report with diagrams and export options.
 
 ---
 
-## 🛠️ Tech Stack
+## Team members and their contributions
+
+| Team member | Contribution |
+| :--- | :--- |
+| **Arjun P Kumar** | Primary implementation and iteration (majority of commits): multi-agent orchestration, Streamlit app, CLI, GitHub tooling, LLM integration, tests, and documentation. *(Includes commits authored as Arjun P K.)* |
+| **Sreekumar M K** | Project direction, architecture alignment, and codebase contributions. |
+
+*Summarized from repository git history; update this table if your course or organization needs a different format.*
+
+---
+
+## Tech stack and versions
+
+**Runtime:** Python **3.10+** (CI and local development; the example lock below was produced with Python **3.13**).
+
+**Direct dependencies** (from `requirements.txt`; install with `pip install -r requirements.txt`):
+
+| Package | Example resolved version¹ |
+| :--- | :--- |
+| streamlit | 1.56.0 |
+| langchain-openai | 1.1.14 |
+| langchain-groq | 1.1.2 |
+| langgraph | 1.1.8 |
+| python-dotenv | 1.2.2 |
+| requests | 2.33.1 |
+| pytest | 9.0.3 |
+| pytest-dotenv | 0.5.2 |
+| python-docx | 1.2.0 |
+| fpdf2 | 2.8.7 |
+| markdown2 | 2.5.5 |
+
+**Transitive / notable stack** (same environment as above): `langchain-core` 1.3.0, `openai` 2.32.0, `pydantic` 2.13.2, `httpx` 0.28.1, `pillow` 12.2.0, `pandas` 3.0.2, `numpy` 2.4.4.
+
+**External services (no pip version):** [OpenRouter](https://openrouter.ai/), [Groq](https://groq.com/), [GitHub REST API v3](https://docs.github.com/en/rest), [Mermaid.ink](https://mermaid.ink/) (diagram rendering in the UI).
+
+¹ *Example versions from `pip freeze` after `pip install -r requirements.txt`. Your versions may differ; run `pip freeze > requirements.lock.txt` for an exact snapshot.*
+
+**Capability map**
 
 | Layer | Technology |
 | :--- | :--- |
-| **User Interface** | [Streamlit](https://streamlit.io/) |
-| **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) & [LangChain](https://www.langchain.com/) |
-| **Model Gateway** | [OpenRouter](https://openrouter.ai/) & [Groq](https://groq.com/) |
-| **Version Control** | [GitHub REST API v3](https://docs.github.com/en/rest) |
-| **Logic/Runtime** | Python 3.10+ |
+| **User interface** | [Streamlit](https://streamlit.io/) |
+| **Orchestration** | [LangGraph](https://github.com/langchain-ai/langgraph) and [LangChain](https://www.langchain.com/) |
+| **Model gateway** | [OpenRouter](https://openrouter.ai/) and [Groq](https://groq.com/) |
+| **Version control** | [GitHub REST API v3](https://docs.github.com/en/rest) |
 | **Visualization** | [Mermaid.ink](https://mermaid.ink/) |
 | **Testing** | [Pytest](https://pytest.org/) |
 
 ---
 
-## 📐 System Architecture
+## Run the project locally (step-by-step)
 
-### Multi-Agent Pipeline
-The system utilizes a unified **LLM Adapter Layer** to route requests to either OpenRouter or Groq. The **Specialist Factory** orchestrates the "Council of Specialists".
+1. **Install Python**  
+   Use Python **3.10** or newer (`python3 --version`).
+
+2. **Clone the repository**  
+   ```bash
+   git clone <repository-url>
+   cd thinkpalm-agentai-sreekumarmk-archguardai
+   ```
+   *(Adjust the directory name if your clone path differs.)*
+
+3. **Create and activate a virtual environment** (recommended)  
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate          # macOS / Linux
+   # .venv\Scripts\activate           # Windows PowerShell
+   ```
+
+4. **Install dependencies**  
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+5. **Configure environment variables**  
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and set at least one LLM provider key, for example:  
+   `OPENROUTER_API_KEY`, and/or `GROQ_API_KEY`, optional `GITHUB_TOKEN` (higher rate limits), and `DEFAULT_LLM_PROVIDER` (`openrouter` or `groq`).
+
+6. **Run the Streamlit dashboard**  
+   From the **repository root** (so `src` imports resolve):  
+   ```bash
+   streamlit run src/app.py
+   ```
+   Open the URL shown in the terminal (default `http://localhost:8501`).
+
+7. **Use the app**  
+   Enter a public (or token-accessible) **GitHub repository URL**, adjust sidebar options if needed, then click **Analyze Now**.
+
+8. **Optional: run a headless analysis (CLI)**  
+   From the repository root:  
+   ```bash
+   python src/cli.py --repo-url "https://github.com/owner/repo"
+   ```
+   Use `python src/cli.py --help` for workers, retries, sequential mode, and output paths.
+
+9. **Optional: run tests**  
+   ```bash
+   python -m pytest tests/ -v
+   ```
+
+---
+
+## Working prototype (screenshots)
+
+Screenshots below are stored under [`screenshots/`](screenshots/).
+
+| Step | Screenshot |
+| :---: | :---: |
+| Initial dashboard | ![Initial dashboard](screenshots/01_initial.png) |
+| Specialist agent 1 (in progress) | ![Agent 1](screenshots/02_Agent%201.png) |
+| Specialist agent 2 (in progress) | ![Agent 2](screenshots/03_Agent%202.png) |
+| Specialist agent 3 (in progress) | ![Agent 3](screenshots/04_Agent%203.png) |
+| Analysis completed | ![Completed](screenshots/05_Completed.png) |
+| Full-page report (Groq example) | ![Full page result](screenshots/06_groq_full_page_result.png) |
+| Specialist intelligence section | ![Specialist intelligence](screenshots/07_specialist_intelligence.png) |
+| Export data UI | ![Export data](screenshots/08_export_data.png) |
+| Document download | ![Document download](screenshots/09_document_download.png) |
+
+---
+
+## Overview
+
+ArchGuard AI orchestrates a **Council of Specialists** so reviews go beyond simple linting: evidence-based insights into tech stack maturity, security posture, design integrity, and performance efficiency.
+
+Specialists use a **ReAct-style** loop (list repository files, read selected paths, analyze) backed by **LangChain** tool agents. A **report synthesizer** merges outputs into a single roadmap-style report. **LangGraph** is included for reporter graph compilation; the live Streamlit and CLI flows are driven by the specialist factory and synthesizer described in the project layout below.
+
+---
+
+## Key features
+
+- **Council of specialists:** three domain agents (Architecture/Design, Security/Quality, Performance/Testing) plus synthesis.
+- **Evidence-based findings:** findings tied to files fetched via GitHub tools.
+- **LLM adapter layer:** OpenRouter and Groq with dynamic model discovery and fallbacks.
+- **Parallel execution swarm:** optional parallel specialist runs (Streamlit sidebar / CLI flags).
+- **Visual reporting:** Mermaid in reports, cleaned and rendered via **Mermaid.ink** in Streamlit.
+- **Runtime resilience:** retries, backoff, and model fallback chains.
+- **CLI and UI:** Streamlit dashboard and CLI for automation.
+
+---
+
+## System architecture
+
+The **LLM adapter layer** routes to OpenRouter or Groq. The **Specialist Factory** runs the council, then the **report synthesizer** produces enriched markdown and diagrams.
 
 ```mermaid
 graph TD
@@ -75,10 +191,11 @@ graph TD
 
 ---
 
-## 🔄 Functional Flow
+## Functional flow
 
-### 1. Model Discovery & Routing
-The process begins by fetching the latest model availability from providers. Requests are routed based on prefix (e.g., `groq/` or `openrouter/`).
+### 1. Model discovery and routing
+
+Provider model lists are queried; routing uses model naming and configuration (for example `groq/` vs OpenRouter-style ids).
 
 ```mermaid
 flowchart LR
@@ -87,24 +204,24 @@ flowchart LR
     B -->|Suffix Discovery| D[OpenRouter]
 ```
 
-### 2. Specialist Investigation (ReAct Pattern)
-Each specialist agent follows a **Reasoning + Action** loop:
-- **Observation**: Reviews the file tree to identify high-interest files.
-- **Action**: Uses the `read_specific_file` tool to fetch source code.
-- **Thinking**: Analyzes evidence against domain-specific principles.
-- **Scoring**: Assigns a numeric score (0-100).
+### 2. Specialist investigation (ReAct pattern)
 
-### 3. Resilience & Fallback
-If a model fails, the system automatically:
-1.  **Retries** with exponential backoff.
-2.  **Switches** to the next best model in the fallback chain.
+- **Observation:** review the file tree.  
+- **Action:** call `read_specific_file` for evidence.  
+- **Thinking:** analyze against domain prompts.  
+- **Scoring:** numeric score 0–100 in the specialist output template.
 
-### 4. Synthesis & Rendering
-The Report Synthesizer builds a narrative and generates Mermaid code. The rendering utility cleans the code and fetches stable image visuals from **Mermaid.ink**.
+### 3. Resilience and fallback
+
+On failure: retry with backoff, then try the next model in the candidate chain.
+
+### 4. Synthesis and rendering
+
+The synthesizer builds the final narrative and Mermaid blocks; the UI sanitizes Mermaid and renders images via **Mermaid.ink**.
 
 ---
 
-## 📁 Project Structure
+## Project structure
 
 ```text
 .
@@ -132,145 +249,67 @@ The Report Synthesizer builds a narrative and generates Mermaid code. The render
 │   │   ├── rendering.py        # Enriched report display
 │   │   └── mermaid_cleanup.py  # Mermaid syntax sanitization
 │   └── app.py                  # Streamlit Application
-├── tests/                      # 53 Tests: 100% Passing
+├── screenshots/                # Prototype screenshots (see above)
+├── tests/                      # Unit, CLI E2E, Streamlit UI E2E
 ├── ADR.md                      # Architecture Decision Records
 └── .env.example                # Configuration template
 ```
 
-### Key Components
-- **`src/agents/specialists/factory.py`**: Specialist orchestration engine—handles parallel swarms, model fallback, and retry logic.
-- **`src/utils/llm_factory.py`**: Multi-provider adapter—routes requests to Groq or OpenRouter with zero-config dynamic discovery.
-- **`src/utils/mermaid_cleanup.py`**: Diagram sanitizer—corrects LLM-generated Mermaid syntax for stable rendering.
-- **`src/app.py`**: Streamlit dashboard—integrates memory management, agent swarms, and visual reporting.
-- **`src/cli.py`**: Headless CLI—automates analysis for CI/CD pipelines.
+### Key components
+
+- **`src/agents/specialists/factory.py`:** parallel swarms, model fallback, retries.  
+- **`src/utils/llm_factory.py`:** Groq / OpenRouter routing.  
+- **`src/utils/mermaid_cleanup.py`:** diagram sanitization.  
+- **`src/app.py`:** Streamlit entrypoint.  
+- **`src/cli.py`:** headless CLI for CI-style runs.
 
 ---
 
-## 🛠️ Installation & Setup
+## Usage (Streamlit)
 
-### Prerequisites
-- Python 3.10 or higher
-- [OpenRouter API Key](https://openrouter.ai/keys)
-- [GitHub Personal Access Token](https://github.com/settings/tokens) (Optional but recommended for higher rate limits)
-
-### Step 1: Clone & Install
-```bash
-git clone <repository-url>
-cd archguard-ai
-pip install -r requirements.txt
-```
-
-### Step 2: Configure Environment
-Copy the example environment file and fill in your keys:
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-```bash
-OPENROUTER_API_KEY=your_openrouter_key
-GROQ_API_KEY=your_groq_key
-GITHUB_TOKEN=your_github_token
-DEFAULT_LLM_PROVIDER=openrouter
-```
-
-### Step 3: Run the Dashboard
-```bash
-streamlit run src/app.py
-```
+1. Enter a **GitHub repository URL**.  
+2. Use the **sidebar** for provider, parallel vs sequential execution, and retry settings.  
+3. Click **Analyze Now**.  
+4. Review the report and diagrams.  
+5. **Export** Word or JSON where offered in the UI.
 
 ---
 
-## 📖 Usage Guide
+## Testing and validation
 
-1.  **Input**: Enter a GitHub Repository URL.
-2.  **Configure**: Use the sidebar to toggle **Parallel Execution** for speed or Sequential for higher stability.
-3.  **Run**: Click "Analyze Now".
-4.  **Visualize**: Interact with the high-fidelity report and automated diagrams.
-5.  **Export**: Download the **Word Document** for reporting or **JSON** for data integration.
-
----
-
-## 🧪 Testing & Validation
-
-ArchGuard AI ships a **comprehensive, multi-layer test suite** — 53 tests covering every module across unit, CLI E2E, and Streamlit UI E2E layers.
-
-### Test Matrix
-
-| Layer | File | Scope |
-| :--- | :--- | :--- |
-| **Unit** | `test_specialist.py` | Agent prompt building, retry logic, rate-limit backoff |
-| **Unit** | `test_synthesizer.py` | Report synthesis, retry & fallback |
-| **Unit** | `test_llm_factory.py` | Groq / OpenRouter routing by model prefix |
-| **Unit** | `test_models.py` | Free-model discovery, candidate ranking, provider selection |
-| **Unit** | `test_github.py` | URL parsing, file tree fetching, base64 decoding |
-| **Unit** | `test_memory_manager.py` | Session-state init, context building, memory capping |
-| **Unit** | `test_rendering.py` | Mermaid local/CDN rendering, enriched report display |
-| **Unit** | `test_reporter.py` | LangGraph `StateGraph` compilation |
-| **Unit** | `test_schemas.py` | Pydantic model validation (`AgentSpec`, `FinalReport`, …) |
-| **Unit** | `test_export.py` | Word & PDF generation, character sanitisation |
-| **Unit** | `test_ui_components.py` | `build_json_export`, sidebar state, export downloads |
-| **E2E CLI** | `test_cli_e2e.py` | Full pipeline: memory load/save, analysis, file outputs |
-| **E2E UI** | `test_ui_e2e.py` | Streamlit app: page load, sidebar config, input validation, report tabs, session state |
-
-### Running Tests
+The suite includes unit tests, CLI E2E, and Streamlit `AppTest` flows (see `tests/`).
 
 ```bash
-# Full suite
 python3 -m pytest tests/ -v
-
-# Unit tests only
 python3 -m pytest tests/unit/ -v
 ```
 
-### Generating Coverage Reports
+Coverage (optional):
 
 ```bash
-# Terminal summary (shows uncovered lines)
 python -m pytest --cov=src --cov-report=term-missing tests/
-
-# Interactive HTML report (open htmlcov/index.html)
 python -m pytest --cov=src --cov-report=html tests/
-
-# Run only fast tests, skip analysis flow
-python -m pytest tests/ -k "not TestAnalysisFlow" -v
 ```
 
-### UI E2E Testing — How It Works
-
-Streamlit UI tests use **`streamlit.testing.v1.AppTest`** — Streamlit's first-party headless test runner. It simulates the full app execution without a browser, allowing interaction with widgets programmatically:
+### UI E2E pattern (excerpt)
 
 ```python
 from streamlit.testing.v1 import AppTest
 
 at = AppTest.from_file("src/app.py").run()
-assert len(at.exception) == 0                        # no crash on load
-at.sidebar.radio[0].set_value("Groq").run()         # switch provider
-assert at.sidebar.selectbox[0].options[0].startswith("groq/")  # correct models shown
+assert len(at.exception) == 0
+at.sidebar.radio[0].set_value("Groq").run()
+assert at.sidebar.selectbox[0].options[0].startswith("groq/")
 ```
 
-Post-analysis UI is tested via `AppTest.from_function` with a self-contained page function, avoiding the `ThreadPoolExecutor` patching limitation inherent to `from_file` isolation.
+---
+
+## Contributing
+
+Contributions are welcome. Read [ADR.md](ADR.md) for design context before opening a PR.
 
 ---
 
-## 📸 Visual Gallery
+## License
 
-Explore the ArchGuard AI interface and its detailed reporting capabilities:
-
-| **Main Dashboard** | **Analysis Progress** |
-| :---: | :---: |
-| ![Dashboard](screenshots/1.png) | ![Progress](screenshots/2.png) |
-| *Enter GitHub URL and configure settings* | *Real-time specialist agent feedback* |
-
-| **Architectural Visualizations** | **Risk Hotspots** |
-| :---: | :---: |
-| ![Architecture](screenshots/6.png) | ![Risks](screenshots/7.png) |
-| *Automated Mermaid diagrams of current state* | *Evidence-based risk mapping* |
-
----
-
-## 👨‍💻 Contributing
-We welcome contributions! Please see our [ADR.md](docs/ADR.md) to understand the design philosophy before submitting a PR.
-
-## 📄 License
-MIT License - Copyright (c) 2026 ArchGuard AI Team.
+MIT License — Copyright (c) 2026 ArchGuard AI Team.

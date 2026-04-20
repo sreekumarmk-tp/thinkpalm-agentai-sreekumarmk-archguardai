@@ -8,9 +8,7 @@ def test_build_json_export():
         repo_url="http://x",
         run_id="123",
         generated_at_utc="time",
-        active_preset="fast",
-        run_in_parallel=True,
-        max_parallel_workers=2,
+        active_preset="Reliable",
         max_attempts_per_model=1,
         base_backoff_seconds=1,
         selected_models={"agent": "model1"},
@@ -21,7 +19,7 @@ def test_build_json_export():
     data = json.loads(json_str)
     assert data["repository"] == "http://x"
     assert data["run_metadata"]["run_id"] == "123"
-    assert data["run_configuration"]["parallel_workers"] == 2
+    assert data["run_configuration"]["retry_attempts_per_model"] == 1
     assert data["models"]["specialists"]["agent"] == "model1"
     assert data["final_report_markdown"] == "final md"
 
@@ -41,47 +39,28 @@ def test_render_sidebar_default(mock_st):
     # Setup mock returns
     mock_st.sidebar.__enter__ = MagicMock()
     mock_st.sidebar.__exit__ = MagicMock()
-    # mock_st.columns
-    mock_col1 = MagicMock()
-    mock_col2 = MagicMock()
-    mock_st.columns.return_value = [mock_col1, mock_col2]
-    # Button mock returns False so it doesn't trigger reruns
-    mock_col1.button.return_value = False
-    mock_col2.button.return_value = False
     
     mock_st.radio.return_value = "Groq"
-    mock_st.checkbox.side_effect = [True, True] # auto_pick, parallel
-    mock_st.slider.side_effect = [3, 2, 4] # parallel, retry, backoff
+    mock_st.checkbox.return_value = False
+    mock_st.number_input.side_effect = [1, 3] # max_attempts, backoff
     
     result = render_sidebar()
-    assert session.parallel_workers == 3
-    assert session.retry_attempts == 2
-    assert session.backoff_seconds == 4
     
     assert result["llm_provider"] == "Groq"
-    assert result["auto_pick_models"] == True
-    assert result["run_in_parallel"] == True
-    assert result["max_parallel_workers"] == 3
-    assert result["max_attempts_per_model"] == 2
-    assert result["base_backoff_seconds"] == 4
-    assert result["active_preset"] == "Custom"
+    assert result["run_in_parallel"] == False
+    assert result["max_parallel_workers"] == 1
+    assert result["max_attempts_per_model"] == 1
+    assert result["base_backoff_seconds"] == 3
 
 @patch("src.ui.components.st")
-@patch("src.ui.components.export_to_docx")
-@patch("src.ui.components.export_to_pdf")
-@patch("builtins.open")
-def test_render_export_downloads(mock_open, mock_to_pdf, mock_to_docx, mock_st):
-    # Setup open mock for reading binary data
-    mock_file = MagicMock()
-    mock_open.return_value.__enter__.return_value = mock_file
-    
-    # Mock columns
-    col1 = MagicMock()
-    col2 = MagicMock()
-    mock_st.columns.return_value = [col1, col2]
+@patch("src.ui.components.get_docx_bytes")
+def test_render_export_downloads(mock_get_docx_bytes, mock_st):
+    mock_get_docx_bytes.return_value = b"bytes"
     
     render_export_downloads("report", "123")
     
-    mock_to_docx.assert_called_once_with("report", "/tmp/report_123.docx")
-    mock_to_pdf.assert_called_once_with("report", "/tmp/report_123.pdf")
-    assert mock_st.download_button.call_count == 2
+    mock_get_docx_bytes.assert_called_once_with("report", "123")
+    assert mock_st.download_button.call_count == 1
+    call_args = mock_st.download_button.call_args[1]
+    assert ".docx" in call_args["file_name"]
+    assert call_args["mime"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

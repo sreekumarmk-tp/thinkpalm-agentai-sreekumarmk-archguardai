@@ -1,50 +1,32 @@
 import pytest
-from unittest.mock import patch, call
+from unittest.mock import patch, MagicMock
 from src.utils.rendering import render_mermaid, display_enriched_report
 
-@patch('src.utils.rendering.components.html')
-@patch('builtins.open')
-@patch('os.path.exists')
-def test_render_mermaid_with_local_js(mock_exists, mock_open, mock_html):
-    mock_exists.return_value = True
-    mock_open.return_value.__enter__.return_value.read.return_value = "console.log('mermaid');"
+@patch('src.utils.rendering.st.image')
+@patch('src.utils.rendering.get_mermaid_url')
+def test_render_mermaid_as_image(mock_get_url, mock_st_image):
+    mock_get_url.return_value = "http://mermaid.ink/png/xyz"
     
-    render_mermaid("graph TD;\nA-->B;", "test-key")
+    render_mermaid("graph TD; A-->B;", "test-key")
     
-    mock_html.assert_called_once()
-    html_arg = mock_html.call_args[0][0]
-    assert "console.log('mermaid');" in html_arg
-    assert "graph TD;" in html_arg
-
-@patch('src.utils.rendering.components.html')
-@patch('os.path.exists')
-def test_render_mermaid_without_local_js(mock_exists, mock_html):
-    mock_exists.return_value = False
-    
-    render_mermaid("graph TD;\nA-->B;", "test-key-2")
-    
-    mock_html.assert_called_once()
-    html_arg = mock_html.call_args[0][0]
-    assert "cdn.jsdelivr.net" in html_arg
-    assert "graph TD;" in html_arg
-
+    mock_st_image.assert_called_once_with("http://mermaid.ink/png/xyz", use_container_width=True)
 
 @patch('src.utils.rendering.render_mermaid')
 @patch('src.utils.rendering.st.markdown')
-def test_display_enriched_report(mock_markdown, mock_render_mermaid):
+def test_display_enriched_report_parsing(mock_markdown, mock_render_mermaid):
     report_text = """
 # Header
-Some text here.
+Some text.
 ```mermaid
-graph TD;
-A-->B;
+graph TD; A;
 ```
-More text.
+Footer.
 """
     display_enriched_report(report_text)
     
-    # Check that markdown was called for the text parts
-    assert mock_markdown.call_count >= 2
+    # Check text parts
+    assert any("Header" in str(c) for c in mock_markdown.call_args_list)
+    assert any("Footer" in str(c) for c in mock_markdown.call_args_list)
     
-    # Check that render_mermaid was called for the mermaid block
-    mock_render_mermaid.assert_called_once_with("graph TD;\nA-->B;", key="diag-1")
+    # Check mermaid part
+    mock_render_mermaid.assert_called_once_with("graph TD; A;", key="diag-1")

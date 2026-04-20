@@ -25,13 +25,15 @@ def test_build_memory_context():
     assert "123" in ctx
 
 @patch('src.cli.parse_github_repo')
-@patch('src.cli.fetch_available_free_models')
-@patch('src.cli.run_specialist_agent_with_retries')
+@patch('src.cli.fetch_available_openrouter_models')
+@patch('src.cli.fetch_available_groq_models')
+@patch('src.cli.SpecialistFactory.run_agent_with_retries')
 @patch('src.cli.synthesize_report')
 def test_cli_main_success(
     mock_synthesize_report,
     mock_run_specialist,
-    mock_fetch_models,
+    mock_fetch_groq,
+    mock_fetch_or,
     mock_parse_github,
     tmp_path,
     monkeypatch
@@ -40,7 +42,8 @@ def test_cli_main_success(
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-12345")
     
     # Mocking outputs
-    mock_fetch_models.return_value = {"model1"}
+    mock_fetch_or.return_value = {"model1:free"}
+    mock_fetch_groq.return_value = {"llama3-8b-8192"}
     mock_run_specialist.return_value = ("Specialist Output", "model1")
     mock_synthesize_report.return_value = "# Final Report\nMarkdown content"
     

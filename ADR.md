@@ -14,151 +14,76 @@ Single-agent architecture reviews were too broad, less explainable, and sensitiv
 **Rationale:** Domain-specialist prompts improve analysis depth. While we initially started with 12 agents, we consolidated to 6 to reduce API call volume and mitigate free-tier rate limiting.
 
 ### 2.7 Agent Consolidation for Resilience (April 2026)
-**Decision:** Consolidate 12 specialized agents into 6 broader core agents.
-- **Tech & Architecture** (Merged Fingerprint + Directory + Migration)
-- **Security & Privacy** (Stable)
-- **Design & Maintainability** (Merged Principles + Patterns + Maintainability)
-- **Code Quality & Typing** (Merged Quality + Typing)
-- **Performance & Efficiency** (Merged Structures + Performance)
-- **Testing & QA** (Stable)
+**Decision:** Final consolidation of the "Council of Specialists" into 3 core agents.
+- **Architecture, Design & Maintainability**: Tech stacks, patterns, SOLID, technical debt.
+- **Security, Quality & Standards**: Vulnerabilities, PII, static typing, coding standards.
+- **Performance, Efficiency & QA**: Complexity, bottlenecks, testing maturity, CI/CD.
 
 **Rationale:** 
-1. **Rate Limit Resilience:** Reduces the total number of API cycles per run by 50%, significantly decreasing the chance of transient failures on OpenRouter free-tier.
-2. **Context Enrichment:** Broader agents can see cross-cutting concerns (e.g., how typing strictness impacts overall code quality) that were previously siloed.
+1. **API Cycle Reduction:** Further minimizes the footprint on free-tier providers to prevent 429 errors.
+2. **Cohesive Analysis:** Merges overlapping concerns (e.g., Maintainability with Design) into single-context analysis.
 
-**Trade-off:** Slightly longer individual agent prompts, but significantly better overall system reliability.
+**Trade-off:** Larger prompt context, but extremely high reliability and deeper cross-cutting insights.
 
-### 2.2 Free-Model Strategy with Dynamic Discovery
-**Decision:** Dynamically fetch OpenRouter model catalog and pick per-agent best free models from curated preferences.
+### 2.10 External Diagram Rendering via Mermaid.ink (April 2026)
+**Decision:** Migrate from local Mermaid.js or Base64 iframes to **Mermaid.ink** for rendering.
 
-**Rationale:** Free-model availability changes over time; static single-model assumptions are brittle.
+**Rationale:** 
+1. **Stability**: Avoids JavaScript initialization conflicts in Streamlit's reactive environment.
+2. **Consistency**: Works perfectly across both the UI and exported Word documents.
+3. **Robustness**: The local `mermaid_cleanup.py` utility ensures LLM-generated syntax errors are corrected before sending to the renderer.
 
-**Trade-off:** Slight startup overhead for model discovery, improved robustness across runtime sessions.
+### 2.11 Streamlined Export Formats (April 2026)
+**Decision:** Focus exclusively on **Word (.docx)** and **JSON** exports; remove PDF support.
 
-### 2.3 Retry, Exponential Backoff, and Fallback Chain
-**Decision:** Add retry attempts per model with exponential backoff; fallback to alternate free models if retries fail.
-
-**Rationale:** Free endpoints often return transient errors (rate limits, timeouts, occasional provider failures).
-
-**Trade-off:** Increased latency in failure scenarios, much higher completion probability.
+**Rationale:** 
+1. **Editability**: Users prefer Word for further customizing results in internal reports.
+2. **Reliability**: Word handles the embedding of external images (like Mermaid diagrams) and tables much more natively and robustly than default FPDF-based PDF generation.
 
 ### 2.4 Parallel Specialist Execution
-**Decision:** Run specialist agents concurrently using configurable worker count.
+**Decision:** Empower users to toggle between parallel and sequential execution of specialists.
 
-**Rationale:** Reduces end-to-end report latency for multi-agent runs.
+**Rationale:** Allows fine-tuning based on API key tier (Paid vs Free).
 
-**Trade-off:** Higher burst traffic can increase transient failures, mitigated by retries/fallback and worker tuning.
-
-### 2.5 Operator-Controlled Runtime Presets
-**Decision:** Add **Fast**, **Reliable**, and **Custom** execution modes in UI.
-
-**Rationale:** Different usage contexts require different trade-offs between speed and stability.
-
-**Trade-off:** Slightly more UI complexity, better operator control and predictability.
-
-
-### 2.8 Modular Architecture and Code Organization (April 2026)
-**Decision:** Refactor the codebase from a monolithic file into a modular structure organized by responsibility:
-- `agents/`: Implementation and prompts for specialist and synthesizer agents.
-- `tools/`: External service connectors (GitHub API).
-- `memory/`: Run-to-run state and context persistence.
-- `schemas/`: Pydantic models for structured data and type safety.
-- `graphs/`: Orchestration logic using LangGraph for future pipeline flexibility.
-- `config/`: Centralized settings, constants, and model preferences.
-- `utils/`: Shared rendering and model selection logic.
-- `ui/`: Streamlit components and user interface orchestration.
-
-**Rationale:** Improves maintainability, testability, and scalability. As the number of agents and features grow, a single file (`app.py`) becomes impossible to manage.
-
-**Trade-off:** Slightly more initial complexity in managing imports and file structure, significantly better long-term velocity.
-
-### 2.9 LLM Adapter Layer for Multi-Provider Support (April 2026)
-**Decision:** Implement an adapter factory (`src/utils/llm_factory.py`) to abstract the underlying LLM provider (OpenRouter or Groq).
-- **Prefix Isolation**: Use `groq/` or `openrouter/` prefixes in model names to route to specific providers.
-- **Unified Interface**: Return a standard LangChain BaseChatModel regardless of the backend.
-
-**Rationale:** 
-1. **Low Latency**: Allows using Groq for near-instant inference when specific high-performance models are needed.
-2. **Diversity**: Retains access to OpenRouter's massive catalog of free models.
-3. **Future-Proofing**: Makes it trivial to add new providers (Anthropic, Gemini, etc.) without touching agent code.
-
-**Trade-off:** Requires managing multiple API keys, but provides superior model flexibility and speed.
+---
 
 ## 3. System Flow
 
 ### 3.1 High-Level Pipeline
 ```mermaid
 flowchart TD
-    A[Input: GitHub repository URL] --> B[GitHub tools: list/read]
-    B --> C[LLM Adapter Layer]
-    C -->|Discover Free| D[OpenRouter Gateway]
-    C -->|High Perf| E[Groq API]
-    D & E --> F[Specialist Agents]
-    F --> G[Specialist findings with evidence]
-    G --> H[Final report synthesis agent]
-    H --> I[Detailed markdown report + Mermaid diagrams]
+    A[Input: GitHub URL] --> B[GitHub tools: list/read]
+    B --> C[LLM Factory: Model Discovery]
+    C --> D[Specialist Swarm: Arch/Security/Perf]
+    D --> E[Report Synthesizer]
+    E --> F[Mermaid Cleanup]
+    F --> G[Mermaid.ink Visuals]
+    G --> H[Final Enriched Report]
+    H --> I[Word / JSON Export]
 ```
 
 ### 3.2 Reliability Flow
 ```mermaid
 flowchart LR
-    A[Agent assigned candidate models] --> B[Try current model]
-    B -->|Success| C[Return output + used model]
-    B -->|Failure| D{Retries left for model?}
-    D -->|Yes| E[Wait exponential backoff]
-    E --> B
-    D -->|No| F{More models in fallback list?}
-    F -->|Yes| G[Switch model and retry]
-    G --> B
-    F -->|No| H[Return structured failure]
+    A[Agent Task] --> B{Try Model}
+    B -->|Success| C[Output]
+    B -->|Failure| D{Retries?}
+    D -->|Yes| E[Backoff] --> B
+    D -->|No| F{Fallback Model?}
+    F -->|Yes| G[Switch] --> B
+    F -->|No| H[Structured Error]
 ```
-
-### 3.4 LLM Adapter Routing Logic
-```mermaid
-flowchart TD
-    A[Model Name Input] --> B{Starts with 'groq/'?}
-    B -->|Yes| C[Provider: Groq]
-    B -->|No| D{Starts with 'openrouter/'?}
-    D -->|Yes| E[Provider: OpenRouter]
-    D -->|No| F[Provider: DEFAULT_LLM_PROVIDER]
-    
-    C --> G[Initialize ChatGroq]
-    E --> H[Initialize ChatOpenAI]
-    F --> I{Default is Groq?}
-    I -->|Yes| G
-    I -->|No| H
-```
-
-### 3.3 Runtime Modes
-- **Fast:** high concurrency, low retries, minimal backoff.
-- **Reliable:** lower concurrency, higher retries, stronger backoff.
-- **Custom:** user-defined workers/retries/backoff values.
 
 ## 4. Tooling and Constraints
-- GitHub ingestion via:
-  - `list_repo_files` (up to configured file-list cap)
-  - `read_specific_file` (file-content cap to control token usage)
-- Authenticated GitHub requests use `GITHUB_TOKEN` when available to improve API limits.
-- Streamlit UI provides run controls, progress feedback, per-agent model visibility, and final report display.
+- GitHub ingestion with configurable depth.
+- Mermaid.ink for stable visualizations.
+- `AppTest` for headless UI validation.
 
-## 5. Validation Strategy
-- Integration-oriented checks via `pytest`:
-  - repository tree retrieval
-  - file content retrieval
-  - agent initialization and invocation loop
-- Functional contract approach is retained due to LLM non-determinism.
-
-## 6. Consequences
+## 5. Consequences
 ### Positive
-- Better depth and traceability of architectural findings.
-- Stronger completion reliability on free-model infrastructure.
-- Faster analysis when parallel mode is enabled.
+- Massive reduction in transient failures.
+- Highly professional Word document output with embedded diagrams.
+- Clean code architecture with clear separation of concerns.
 
 ### Negative
-- Higher complexity in orchestration and runtime tuning.
-- More external dependencies (OpenRouter catalog behavior and free-model health).
-
-## 7. Future Enhancements
-- Cache repository tree and file reads within a single run to reduce repeated API calls.
-- Add optional SARIF/JSON export for CI integration.
-- Add confidence scoring normalization across specialists.
+- Dependency on external Mermaid.ink (mitigated by raw code view fallback).

@@ -7,36 +7,31 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-import time
 import json
 from uuid import uuid4
 from datetime import datetime, timezone
+from typing import Dict, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Tuple, Set
 
 import streamlit as st
 from dotenv import load_dotenv
 
 from src.config.settings import (
     OPENROUTER_API_KEY,
-    AGENT_DEFINITIONS,
-    OPENROUTER_ANY_FREE_SENTINEL,
-    GROQ_MODELS,
-    OPENROUTER_MODELS,
+    ACTIVE_AGENT_IDS,
 )
 from src.tools.github import parse_github_repo
 from src.utils.models import (
-    fetch_available_free_models,
+    fetch_available_openrouter_models,
+    fetch_available_groq_models,
     get_model_candidates_for_agent,
-    select_model_for_agent,
-    fetch_available_free_models,
 )
 from src.memory.manager import (
     initialize_memory,
     build_memory_context,
     record_analysis_memory,
 )
-from src.agents.specialist import run_specialist_agent_with_retries
+from src.agents.specialists.factory import SpecialistFactory
 from src.agents.synthesizer import synthesize_report
 from src.utils.rendering import display_enriched_report
 from src.ui.components import render_sidebar, build_json_export, render_export_downloads
@@ -89,30 +84,17 @@ def render_streamlit_app() -> None:
 
     config = render_sidebar()
     
-    auto_pick_models = config["auto_pick_models"]
-    run_in_parallel = config["run_in_parallel"]
-    max_parallel_workers = config["max_parallel_workers"]
     max_attempts_per_model = config["max_attempts_per_model"]
     base_backoff_seconds = config["base_backoff_seconds"]
     active_preset = config["active_preset"]
     provider = config["llm_provider"]
 
-    # Compact Model Selection in Sidebar
-    with st.sidebar:
-        st.subheader("🤖 Model Control")
-        model_options = []
-        if provider == "Groq":
-            model_options = [f"groq/{m}" for m in GROQ_MODELS]
-        else:
-            model_options = [OPENROUTER_ANY_FREE_SENTINEL] + [f"openrouter/{m}" for m in OPENROUTER_MODELS]
-            
-        manual_model = st.selectbox(
-            "Primary / Fallback Model",
-            model_options,
-            help="If auto-selection is off, this model is used. If on, it's the final fallback.",
-            label_visibility="collapsed"
-        )
+    # Auto model picking is now forced, no manual model selection needed.
+    # provider = config["llm_provider"] is already extracted from render_sidebar output
         
+    if "current_analysis" not in st.session_state:
+        st.session_state.current_analysis = None
+
     col_input, col_action = st.columns([4, 1])
     with col_input:
         repo_url = st.text_input(
@@ -124,6 +106,7 @@ def render_streamlit_app() -> None:
         run_analysis = st.button("🚀 Analyze Now", use_container_width=True, type="primary")
 
     if run_analysis:
+        st.session_state.current_analysis = None
         if not repo_url or repo_url == "https://github.com/<GitHubUserName>/<RepositoryName>":
             st.warning("Please enter a valid GitHub repository URL.")
             st.stop()
@@ -139,12 +122,9 @@ def render_streamlit_app() -> None:
             st.error(str(e))
             st.stop()
 
-        with st.spinner("⚡ Initializing agents and discovering free model capacity..."):
-            available_free_models = (
-                fetch_available_free_models()
-                if auto_pick_models or manual_model == OPENROUTER_ANY_FREE_SENTINEL
-                else set()
-            )
+        with st.spinner("⚡ Initializing agents and discovering model capacity..."):
+            available_openrouter_models = fetch_available_openrouter_models()
+            available_groq_models = fetch_available_groq_models()
 
         specialist_results: Dict[str, str] = {}
         selected_models: Dict[str, str] = {}
@@ -155,60 +135,68 @@ def render_streamlit_app() -> None:
             progress = st.progress(0)
             status = st.empty()
 
+        AGENT_DEFINITIONS = SpecialistFactory.get_active_definitions(ACTIVE_AGENT_IDS)
         total_steps = len(AGENT_DEFINITIONS) + 1
         model_plan: List[Tuple[Dict[str, str], List[str]]] = []
         for spec in AGENT_DEFINITIONS:
-            candidates = (
-                get_model_candidates_for_agent(spec["id"], available_free_models, manual_model)
-                if auto_pick_models
-                else (sorted(available_free_models) if manual_model == OPENROUTER_ANY_FREE_SENTINEL else [manual_model])
+            candidates = get_model_candidates_for_agent(
+                spec["id"], 
+                available_openrouter_models, 
+                provider=provider,
+                available_groq_models=available_groq_models
             )
             selected_models[spec["title"]] = candidates[0]
             model_plan.append((spec, candidates))
 
-        if run_in_parallel:
-            status.info(f"🛰️ Executing {len(AGENT_DEFINITIONS)} agents in parallel swarm...")
-            completed = 0
-            workers = min(max_parallel_workers, len(model_plan))
-            with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = {
-                    executor.submit(
-                        run_specialist_agent_with_retries,
-                        repo_url,
-                        spec,
-                        candidates,
-                        max_attempts_per_model,
-                        float(base_backoff_seconds),
-                        memory_context,
-                    ): (spec, candidates)
-                    for spec, candidates in model_plan
-                }
-                for future in as_completed(futures):
-                    spec, candidates = futures[future]
-                    try:
-                        content, used_model = future.result()
-                        specialist_results[spec["title"]] = content
-                        selected_models[spec["title"]] = used_model
-                    except Exception as exc:
-                        status.error(f"❌ FATAL: Agent '{spec['title']}' failed. Swarm terminated.")
-                        st.error(f"Reason: {str(exc)}")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        st.stop()
+        run_in_parallel = config.get("run_in_parallel", False)
+        max_workers = config.get("max_parallel_workers", 3)
 
-                    completed += 1
-                    status.info(f"✅ Completed Swarm Task {completed}/{len(AGENT_DEFINITIONS)}: {spec['title']}")
-                    progress.progress(completed / total_steps)
+        if run_in_parallel:
+            status.info("🚀 **Parallel Execution: Initializing Specialist Swarm...**")
+            
+            def run_single_agent(spec_data: Tuple[Dict[str, str], List[str]], idx: int):
+                spec, candidates = spec_data
+                # For parallel execution, we don't want multiple agents fighting for the same status placeholder
+                # So we use a silent or specialized callback if needed, but here we just run it.
+                content, used_model = SpecialistFactory.run_agent_with_retries(
+                    repo_url,
+                    spec["id"],
+                    candidates,
+                    max_attempts_per_model,
+                    base_backoff_seconds,
+                    memory_context,
+                    status_callback=None # Silent in parallel to avoid UI flicker/clash
+                )
+                return spec["title"], content, used_model
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(run_single_agent, plan, i): plan for i, plan in enumerate(model_plan, start=1)}
+                completed_count = 0
+                for future in as_completed(futures):
+                    try:
+                        title, content, used_model = future.result()
+                        specialist_results[title] = content
+                        selected_models[title] = used_model
+                        completed_count += 1
+                        progress.progress(completed_count / total_steps)
+                        status.success(f"✅ {title} Analysis Completed.")
+                    except Exception as exc:
+                        status.error(f"❌ Parallel Execution Error: {str(exc)}")
+                        st.stop()
         else:
             for index, (spec, candidates) in enumerate(model_plan, start=1):
-                status.info(f"🧬 Sequencing Agent {index}/{len(AGENT_DEFINITIONS)}: {spec['title']}...")
+                def make_status_cb(idx, title):
+                    return lambda m: status.info(f"🧬 Sequencing Agent {idx}/{len(AGENT_DEFINITIONS)}: **{title}**\n\n📡 *Active Model:* `{m}`")
+                
                 try:
-                    content, used_model = run_specialist_agent_with_retries(
+                    content, used_model = SpecialistFactory.run_agent_with_retries(
                         repo_url,
-                        spec,
+                        spec["id"],
                         candidates,
                         max_attempts_per_model,
-                        float(base_backoff_seconds),
+                        base_backoff_seconds,
                         memory_context,
+                        status_callback=make_status_cb(index, spec['title'])
                     )
                     specialist_results[spec["title"]] = content
                     selected_models[spec["title"]] = used_model
@@ -218,20 +206,26 @@ def render_streamlit_app() -> None:
                     st.stop()
                 progress.progress(index / total_steps)
 
-        synthesizer_model = (
-            select_model_for_agent("report_synthesizer", available_free_models, provider=provider)
-            if auto_pick_models
-            else manual_model
+        synthesizer_candidates = get_model_candidates_for_agent(
+            "report_synthesizer", 
+            available_openrouter_models, 
+            provider=provider,
+            available_groq_models=available_groq_models
         )
-        status.info(f"💎 Synthesizing Final Analysis with {synthesizer_model}...")
+        synthesizer_model = synthesizer_candidates[0]
+        
+        def synth_cb(m):
+            status.info(f"💎 Synthesizing Final Analysis...\n\n📡 *Active Model:* `{m}`")
+            
         try:
             final_report = synthesize_report(
                 repo_url,
-                synthesizer_model,
+                synthesizer_candidates,
                 specialist_results,
                 memory_context,
                 max_attempts_per_model=max_attempts_per_model,
-                base_backoff_seconds=float(base_backoff_seconds),
+                base_backoff_seconds=base_backoff_seconds,
+                status_callback=synth_cb
             )
         except Exception as exc:
             final_report = (
@@ -248,16 +242,37 @@ def render_streamlit_app() -> None:
         generated_at = datetime.now(timezone.utc).isoformat()
         record_analysis_memory(run_id, repo_url, generated_at, final_report)
 
+        # Store in session state for persistence across reruns (e.g. downloads)
+        st.session_state.current_analysis = {
+            "run_id": run_id,
+            "repo_url": repo_url,
+            "generated_at": generated_at,
+            "final_report": final_report,
+            "specialist_results": specialist_results,
+            "selected_models": selected_models,
+            "synthesizer_model": synthesizer_model,
+            "provider": provider,
+            "active_preset": active_preset,
+            "max_attempts_per_model": max_attempts_per_model,
+            "base_backoff_seconds": base_backoff_seconds,
+        }
+
+    # Always render if we have an analysis in the current session
+    if st.session_state.current_analysis:
+        analysis = st.session_state.current_analysis
+        run_id = analysis["run_id"]
+        final_report = analysis["final_report"]
+        specialist_results = analysis["specialist_results"]
+        selected_models = analysis["selected_models"]
+        
         st.divider()
         st.header("📋 Analysis Report")
         
         tab_report, tab_raw, tab_export = st.tabs(["🚀 Executive Summary", "🔍 Specialist Intel", "📦 Export & Data"])
         
         with tab_report:
-            render_export_downloads(final_report, run_id)
-            st.markdown('<div class="report-card">', unsafe_allow_html=True)
+            render_export_downloads(final_report, run_id, key_suffix="main")
             display_enriched_report(final_report)
-            st.markdown('</div>', unsafe_allow_html=True)
             
         with tab_raw:
             for title, out in specialist_results.items():
@@ -267,10 +282,16 @@ def render_streamlit_app() -> None:
 
         with tab_export:
             json_str = build_json_export(
-                repo_url, run_id, generated_at, active_preset,
-                run_in_parallel, max_parallel_workers, max_attempts_per_model,
-                base_backoff_seconds, selected_models, synthesizer_model,
-                specialist_results, final_report
+                analysis["repo_url"], 
+                analysis["run_id"], 
+                analysis["generated_at"], 
+                analysis["active_preset"],
+                analysis["max_attempts_per_model"],
+                analysis["base_backoff_seconds"], 
+                analysis["selected_models"], 
+                analysis["synthesizer_model"],
+                analysis["specialist_results"], 
+                analysis["final_report"]
             )
             col_d1, col_d2 = st.columns(2)
             with col_d1:
@@ -279,11 +300,11 @@ def render_streamlit_app() -> None:
                     data=json_str,
                     file_name=f"arch_review_{run_id}.json",
                     mime="application/json",
-                    use_container_width=True
+                    use_container_width=True,
+                    key=f"json_download_{run_id}"
                 )
             with col_d2:
-                # Add another copy of word/pdf here for convenience
-                render_export_downloads(final_report, run_id)
+                render_export_downloads(final_report, run_id, key_suffix="export_tab")
                 
             st.subheader("Raw JSON Context")
             st.json(json.loads(json_str))

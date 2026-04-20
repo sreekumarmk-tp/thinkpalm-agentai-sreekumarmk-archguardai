@@ -11,20 +11,20 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Dict, List, Tuple
 from uuid import uuid4
 
 from dotenv import load_dotenv
 
-from src.config.settings import AGENT_DEFINITIONS, MAX_MEMORY_REPORT_CHARS
+from src.config.settings import ACTIVE_AGENT_IDS, MAX_MEMORY_REPORT_CHARS
+from src.agents.specialists.factory import SpecialistFactory
 from src.tools.github import parse_github_repo
 from src.utils.models import (
-    fetch_available_free_models,
+    fetch_available_openrouter_models,
+    fetch_available_groq_models,
     get_model_candidates_for_agent,
-    select_model_for_agent,
 )
-from src.agents.specialist import run_specialist_agent_with_retries
+
 from src.agents.synthesizer import synthesize_report
 
 load_dotenv()
@@ -66,7 +66,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manual-model", default=DEFAULT_MANUAL_MODEL, help="Fallback model.")
     parser.add_argument("--workers", type=int, default=4, help="Parallel workers (1-10).")
     parser.add_argument("--retries", type=int, default=2, help="Attempts per model.")
-    parser.add_argument("--backoff", type=float, default=2.0, help="Base backoff seconds.")
+    parser.add_argument("--backoff", type=int, default=2, help="Base backoff seconds.")
     parser.add_argument("--no-auto-models", action="store_true", help="Disable free-model discovery.")
     parser.add_argument("--sequential", action="store_true", help="Disable parallel specialist execution.")
     parser.add_argument(
@@ -100,8 +100,9 @@ def main() -> int:
     max_workers = max(1, min(10, args.workers))
     retries = max(1, args.retries)
 
-    print("Discovering available free models...")
-    available_free_models = fetch_available_free_models() if auto_pick_models else set()
+    print("Discovering available models...")
+    available_openrouter_models = fetch_available_openrouter_models() if auto_pick_models else set()
+    available_groq_models = fetch_available_groq_models() if auto_pick_models else set()
 
     memory_path = Path(args.memory_file)
     memory_runs = load_memory(memory_path)
@@ -110,9 +111,15 @@ def main() -> int:
     specialist_results: Dict[str, str] = {}
     selected_models: Dict[str, str] = {}
     model_plan: List[Tuple[Dict[str, str], List[str]]] = []
+    AGENT_DEFINITIONS = SpecialistFactory.get_active_definitions(ACTIVE_AGENT_IDS)
     for spec in AGENT_DEFINITIONS:
         candidates = (
-            get_model_candidates_for_agent(spec["id"], available_free_models, args.manual_model)
+            get_model_candidates_for_agent(
+                spec["id"], 
+                available_openrouter_models, 
+                provider="groq" if "groq" in args.manual_model.lower() else "openrouter",
+                available_groq_models=available_groq_models
+            )
             if auto_pick_models
             else [args.manual_model]
         )
@@ -124,9 +131,9 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=min(max_workers, len(model_plan))) as executor:
             futures = {
                 executor.submit(
-                    run_specialist_agent_with_retries,
+                    SpecialistFactory.run_agent_with_retries,
                     args.repo_url,
-                    spec,
+                    spec["id"],
                     candidates,
                     retries,
                     args.backoff,
@@ -148,9 +155,9 @@ def main() -> int:
         print(f"Running {len(model_plan)} specialist agents sequentially...")
         for index, (spec, candidates) in enumerate(model_plan, start=1):
             print(f"[{index}/{len(model_plan)}] {spec['title']} ({candidates[0]})")
-            content, used_model = run_specialist_agent_with_retries(
+            content, used_model = SpecialistFactory.run_agent_with_retries(
                 args.repo_url,
-                spec,
+                spec["id"],
                 candidates,
                 retries,
                 args.backoff,
@@ -159,15 +166,21 @@ def main() -> int:
             specialist_results[spec["title"]] = content
             selected_models[spec["title"]] = used_model
 
-    synthesizer_model = (
-        select_model_for_agent("report_synthesizer", available_free_models)
+    synthesizer_candidates = (
+        get_model_candidates_for_agent(
+            "report_synthesizer", 
+            available_openrouter_models, 
+            provider="groq" if "groq" in args.manual_model.lower() else "openrouter",
+            available_groq_models=available_groq_models
+        )
         if auto_pick_models
-        else args.manual_model
+        else [args.manual_model]
     )
+    synthesizer_model = synthesizer_candidates[0]
     print(f"Synthesizing final report with {synthesizer_model}...")
     final_report = synthesize_report(
         args.repo_url, 
-        synthesizer_model, 
+        synthesizer_candidates, 
         specialist_results, 
         memory_context,
         max_attempts_per_model=retries,

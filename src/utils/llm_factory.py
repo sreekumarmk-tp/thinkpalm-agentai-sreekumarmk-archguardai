@@ -1,4 +1,3 @@
-import os
 from langchain_openai import ChatOpenAI
 from src.config.settings import (
     OPENROUTER_API_KEY,

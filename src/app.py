@@ -77,7 +77,7 @@ def render_streamlit_app() -> None:
     apply_custom_styles()
     
     st.markdown('<h1 class="main-title">🛡️ ArchGuard AI</h1>', unsafe_allow_html=True)
-    st.markdown("#### *Autonomous Multi-Agent Architecture Review & Risk Guardrail*")
+    st.markdown("#### *Autonomous Multi-Agent Architecture Review System*")
     st.divider()
 
     initialize_memory()

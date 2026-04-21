@@ -2,6 +2,8 @@
 
 **A multi-agent system for deep repository analysis, security auditing, and architectural health assessments using LLMs.**
 
+🎥 **[Watch Project Explanation Video (Loom)](https://www.loom.com/share/cdd4ad04b51f44cb94e89dbc13a36968)**
+
 ---
 
 ## Project name and problem statement
@@ -14,12 +16,25 @@
 
 ## Team members and their contributions
 
-| Team member | Contribution |
+### Sreekumar M K
+| Category | Contribution Details |
 | :--- | :--- |
-| **Arjun P Kumar** | Primary implementation and iteration (majority of commits): multi-agent orchestration, Streamlit app, CLI, GitHub tooling, LLM integration, tests, and documentation. *(Includes commits authored as Arjun P K.)* |
-| **Sreekumar M K** | Project direction, architecture alignment, and codebase contributions. |
+| **Core Architecture** | **Implemented Modular Agent Architecture:** Designed and built the multi-specialist agent system, including the initial Streamlit UI and the foundational test suite. |
+| **Design Patterns** | **SpecialistFactory Pattern:** Refactored the agent creation logic using the Factory pattern to support dynamic specialist instantiation and easier extension. |
+| **Data Persistence** | **SQLite Migration:** Led the transition from local JSON file storage to a robust SQLite backend, enabling reliable cross-session memory and history tracking. |
+| **UI/UX Engineering** | **Enhanced Visualization:** Fixed critical rendering issues for Mermaid diagrams, optimized URL encoding for diagram generation, and improved sequence diagram parsing. |
+| **Testing & Quality** | **E2E Test Optimization:** Refactored UI automation tests to improve modularity and reliability by correctly scoping mock application components. |
+| **Documentation** | **Visual Documentation:** Authored comprehensive documentation updates including CLI execution flow, test report demonstrations, and OpenRouter integration results. |
 
-*Summarized from repository git history; update this table if your course or organization needs a different format.*
+### Arjun P Kumar
+| Category | Contribution Details |
+| :--- | :--- |
+| **Project Initialization** | **Initial Setup:** Handled the repository's initial commit and project structure setup. |
+| **Documentation (ADRs)** | **Architecture Records:** Created and formatted the ADR (Architecture Decision Record) files, ensuring project decisions are well-documented. |
+| **README & Guides** | **Extensive README Updates:** Frequently updated the README.md with installation guides, architectural explanations, and updated repository URLs. |
+| **Visualization** | **Diagrams & Screenshots:** Added architectural diagrams and various screenshots to help visualize the system's execution flow and results. |
+| **CLI & Tools** | **CLI Refinement:** Contributed to cli.py updates and general code restructuring to improve project organization. |
+| **Testing** | **Test Maintenance:** Updated and maintained various test files to align with codebase changes. |
 
 ---
 

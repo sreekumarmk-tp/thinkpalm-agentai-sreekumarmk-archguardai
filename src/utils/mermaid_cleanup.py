@@ -1,4 +1,6 @@
 import re
+import json
+import base64
 
 def cleanup_mermaid_code(code: str) -> str:
     """
@@ -47,25 +49,31 @@ def cleanup_mermaid_code(code: str) -> str:
             line = re.sub(pattern, replacer, line)
         return line
 
-    # 5. Process lines for labels
-    lines = code.split('\n')
-    processed_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith('subgraph') or stripped == 'end' or not stripped:
-            processed_lines.append(line)
-        else:
-            processed_lines.append(quote_problematic_labels(line))
-    
-    code = '\n'.join(processed_lines)
+    # 5. Process lines for labels (only for flowcharts/graphs to avoid breaking sequence diagrams)
+    if 'sequenceDiagram' not in code:
+        lines = code.split('\n')
+        processed_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('subgraph') or stripped == 'end' or not stripped:
+                processed_lines.append(line)
+            else:
+                processed_lines.append(quote_problematic_labels(line))
+        code = '\n'.join(processed_lines)
 
     # 6. Sequence Diagram specific fixes
     if 'sequenceDiagram' in code:
-        # Fix Participant->">Target:": -> Participant->Target:
-        code = re.sub(r'([\w\s]+?)\s*->>\s*"(.*?):?"\s*', r'\1->>\2 ', code)
-        code = re.sub(r'([\w\s]+?)\s*->\s*"(.*?):?"\s*', r'\1->\2 ', code)
-        # Ensure a colon exists for labels if missing after arrow
-        code = re.sub(r'(-\>+)\s*([^:]+?)\s+([A-Z/])', r'\1 \2: \3', code)
+        # Fix malformed arrows and quoted/colonized targets: DB-->">Auth:" User data -> DB-->>Auth: User data
+        code = re.sub(r'([\w\s]+?)\s*(?:--\>|--\>\>|-\>\>|-\>)\s*"(.*?):?"\s*(.*)', r'\1-->>\2: \3', code)
+        # Fix cases where colon is misplaced or missing: DB-->>Auth User data -> DB-->>Auth: User data
+        code = re.sub(r'(--\>\>|-\>\>|-\>)\s*([\w\s]+)\s+([A-Z/])', r'\1 \2: \3', code)
+        # Final cleanup of any double colons or quotes in targets
+        code = re.sub(r'->>\s*"(.*?)"', r'->>\1', code)
+        code = re.sub(r'-->>\s*"(.*?)"', r'-->>\1', code)
+        # Fix sequence diagram notes: Note over A,B -> Note over A, B
+        code = re.sub(r'Note\s+(over|left of|right of)\s+([^:]+)', lambda m: f"Note {m.group(1)} {m.group(2).replace(',', ', ')}", code)
+        # Fix double spaces from comma replacement
+        code = code.replace(',  ', ', ')
             
     return code
 
@@ -73,12 +81,13 @@ def get_mermaid_url(code: str, theme: str = "dark") -> str:
     """
     Generates a mermaid.ink URL for the given code.
     """
-    import json
-    import base64
     payload = {
         "code": code,
-        "mermaid": {"theme": theme}
+        "mermaid": {"theme": theme, "themeVariables": {"darkMode": True if theme == "dark" else False}}
     }
     json_str = json.dumps(payload)
+    # Use standard base64 but replace characters to be URL safe for mermaid.ink
     base64_code = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+    # Some mermaid.ink versions prefer standard, but let's ensure no / occurs at the end
+    base64_code = base64_code.replace('+', '-').replace('/', '_').rstrip('=')
     return f"https://mermaid.ink/img/{base64_code}"

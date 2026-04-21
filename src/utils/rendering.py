@@ -11,7 +11,7 @@ def render_mermaid(code: str, key: str):
     img_url = get_mermaid_url(cleaned_code)
     
     try:
-        st.image(img_url, use_container_width=True)
+        st.image(img_url, width="stretch")
     except Exception as e:
         st.error(f"Failed to render diagram: {e}")
         with st.expander("Show raw Mermaid code", expanded=False):

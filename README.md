@@ -134,6 +134,7 @@ Screenshots below are stored under [`screenshots/`](screenshots/).
 | Specialist intelligence section | ![Specialist intelligence](screenshots/07_specialist_intelligence.png) |
 | Export data UI | ![Export data](screenshots/08_export_data.png) |
 | Document download | ![Document download](screenshots/09_document_download.png) |
+| Full-page report (OpenRouter example) | ![Full page result OR](screenshots/10_OpenRouter_full_page_result.png) |
 
 ---
 

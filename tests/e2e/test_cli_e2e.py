@@ -80,6 +80,10 @@ def test_cli_main_success(
     assert "Specialist Output" in str(data["specialist_outputs"])
     assert data["run_configuration"]["llm_provider"] == "openrouter"
     assert data["run_configuration"]["parallel_enabled"] is False
+    assert data["run_configuration"]["auto_pick_models"] is True
+    assert data["run_configuration"]["parallel_workers"] == 1
+    assert data["run_configuration"]["retry_attempts_per_model"] >= 1
+    assert data["run_configuration"]["base_backoff_seconds"] >= 1
     assert "run_metadata" in data
 
     assert docx_path.exists()

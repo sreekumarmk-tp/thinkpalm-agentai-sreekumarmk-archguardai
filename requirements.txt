@@ -5,6 +5,7 @@ langgraph
 python-dotenv
 requests
 pytest
+pytest-cov
 pytest-dotenv
 langchain-groq
 python-docx

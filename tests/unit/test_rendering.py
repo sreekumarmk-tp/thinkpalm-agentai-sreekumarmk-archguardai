@@ -9,7 +9,7 @@ def test_render_mermaid_as_image(mock_get_url, mock_st_image):
     
     render_mermaid("graph TD; A-->B;", "test-key")
     
-    mock_st_image.assert_called_once_with("http://mermaid.ink/png/xyz", use_container_width=True)
+    mock_st_image.assert_called_once_with("http://mermaid.ink/png/xyz", width="stretch")
 
 @patch('src.utils.rendering.render_mermaid')
 @patch('src.utils.rendering.st.markdown')

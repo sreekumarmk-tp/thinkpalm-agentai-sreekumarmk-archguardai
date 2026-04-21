@@ -39,6 +39,7 @@
 | python-dotenv | 1.2.2 |
 | requests | 2.33.1 |
 | pytest | 9.0.3 |
+| pytest-cov | (for `pytest --cov`; see `pip freeze`) |
 | pytest-dotenv | 0.5.2 |
 | python-docx | 1.2.0 |
 | fpdf2 | 2.8.7 |
@@ -375,29 +376,31 @@ The synthesizer builds the final narrative and Mermaid blocks; the UI sanitizes 
 
 ## Testing and validation
 
-The suite includes unit tests, CLI E2E, and Streamlit `AppTest` flows (see `tests/`).
+The suite includes unit tests, CLI E2E, and Streamlit `AppTest` flows (see `tests/`). **`pytest.ini`** sets **`pythonpath = .`** so `import src…` works from any working directory (including when your IDE runs a single test file). Use **pytest 7+**.
 
 ```bash
 python3 -m pytest tests/ -v
 python3 -m pytest tests/unit/ -v
 ```
 
-Coverage (optional):
+Coverage (requires **`pytest-cov`**, listed in **`requirements.txt`** — run `pip install -r requirements.txt` first):
 
 ```bash
 python -m pytest --cov=src --cov-report=term-missing tests/
 python -m pytest --cov=src --cov-report=html tests/
 ```
 
+If you see **`error: unrecognized arguments: --cov=src`**, install the missing plugin: `pip install pytest-cov`.
+
 ### UI E2E pattern (excerpt)
 
 ```python
 from streamlit.testing.v1 import AppTest
 
-at = AppTest.from_file("src/app.py").run()
+at = AppTest.from_file("src/app.py", default_timeout=30).run()
 assert len(at.exception) == 0
-at.sidebar.radio[0].set_value("Groq").run()
-assert at.sidebar.selectbox[0].options[0].startswith("groq/")
+at.sidebar.radio[0].set_value("OpenRouter").run()
+assert at.session_state.llm_provider == "OpenRouter"
 ```
 
 ---
